@@ -12,6 +12,7 @@ let algorithms  = [];    // [{ id, name }, ...]
 let dataSizes   = [];    // [16, 32, ...]
 let conditions  = [];    // [{ id, name }, ...]
 let panelSeq    = 0;     // パネル ID 採番
+let _dragSrcEl  = null;  // ドラッグ中のパネル要素
 
 // ===== 起動 ========================================================
 window.addEventListener("DOMContentLoaded", async () => {
@@ -151,6 +152,7 @@ class SortPanel {
   _template() {
     return `
       <div class="panel-header">
+        <span class="drag-handle" title="ドラッグして移動">⠿</span>
         <span class="panel-title">パネル ${this.id}</span>
         <button class="panel-close" title="削除">✕</button>
       </div>
@@ -259,6 +261,51 @@ class SortPanel {
     const ro = new ResizeObserver(() => this._onResize());
     ro.observe(this.el);
     ro.observe(q(".canvas-wrapper"));
+
+    // ── ドラッグ & ドロップで並び替え ─────────────────────────
+    const handle = q(".drag-handle");
+
+    // ハンドルを押している間だけパネルをドラッグ可能にする
+    handle.addEventListener("mousedown", () => { this.el.draggable = true; });
+    handle.addEventListener("mouseup",   () => { this.el.draggable = false; });
+
+    this.el.addEventListener("dragstart", (e) => {
+      _dragSrcEl = this.el;
+      this.el.classList.add("dragging");
+      e.dataTransfer.effectAllowed = "move";
+    });
+    this.el.addEventListener("dragend", () => {
+      this.el.draggable = false;
+      this.el.classList.remove("dragging");
+      document.querySelectorAll(".panel").forEach(p => p.classList.remove("drag-over"));
+      _dragSrcEl = null;
+    });
+    this.el.addEventListener("dragover", (e) => {
+      if (!_dragSrcEl || _dragSrcEl === this.el) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+      this.el.classList.add("drag-over");
+    });
+    this.el.addEventListener("dragleave", (e) => {
+      // パネル外に出た時だけ解除（子要素への移動では解除しない）
+      if (!this.el.contains(e.relatedTarget)) {
+        this.el.classList.remove("drag-over");
+      }
+    });
+    this.el.addEventListener("drop", (e) => {
+      e.preventDefault();
+      this.el.classList.remove("drag-over");
+      if (!_dragSrcEl || _dragSrcEl === this.el) return;
+      const container = document.getElementById("panels-container");
+      const all = [...container.querySelectorAll(".panel")];
+      const srcIdx = all.indexOf(_dragSrcEl);
+      const dstIdx = all.indexOf(this.el);
+      if (srcIdx < dstIdx) {
+        container.insertBefore(_dragSrcEl, this.el.nextSibling);
+      } else {
+        container.insertBefore(_dragSrcEl, this.el);
+      }
+    });
   }
 
   // ── リサイズハンドラ ─────────────────────────────────────────

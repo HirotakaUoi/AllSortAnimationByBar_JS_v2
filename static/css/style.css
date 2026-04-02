@@ -149,6 +149,30 @@ header h1 {
 }
 .panel-close:hover { color: #e94560; background: rgba(233,69,96,.15); }
 
+/* ドラッグハンドル */
+.drag-handle {
+  color: #444;
+  font-size: 1.2rem;
+  cursor: grab;
+  padding: 0 4px;
+  user-select: none;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.drag-handle:hover { color: #90caf9; }
+.drag-handle:active { cursor: grabbing; }
+
+/* ドラッグ中・ドロップ対象のスタイル */
+.panel.dragging {
+  opacity: .35;
+  border-style: dashed;
+}
+.panel.drag-over {
+  border-color: #e2b96f !important;
+  border-style: dashed;
+  background: rgba(226,185,111,.06);
+}
+
 /* パラメタ行 */
 .params-row {
   display: flex;
