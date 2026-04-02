@@ -249,15 +249,13 @@ def quick_sort(data, color, option=None):
                 while i < last and data[i] < pivot:
                     color[i] = "b"; i += 1
                     if i < last: color[i] = "y"
-                    if n <= 100:
-                        yield make_frame(data, color, texts=texts,
-                                         lines=lines, bars=[i])
+                    yield make_frame(data, color, texts=texts,
+                                     lines=lines, bars=[i])
                 while j >= first and data[j] > pivot:
                     color[j] = "b"; j -= 1
                     if j > first: color[j] = "m"
-                    if n <= 100:
-                        yield make_frame(data, color, texts=texts,
-                                         lines=lines, bars=[j])
+                    yield make_frame(data, color, texts=texts,
+                                     lines=lines, bars=[j])
                 if i >= j:
                     break
                 data[i], data[j] = data[j], data[i]

@@ -1,9 +1,13 @@
-# ソートアルゴリズム アニメーション (Sort Algorithm Animator)
+# ソートアルゴリズム アニメーション v2 (Sort Algorithm Animator)
 
 ブラウザ上でソートアルゴリズムの動作をリアルタイムにアニメーション表示する Web アプリケーションです。
 複数のアルゴリズムを同時に並べて比較できます。
 
-**デモ (Live Demo):** https://allsortanimationbybar-js.onrender.com/
+**デモ (Live Demo):** https://allsortanimationbybar-js-v2.onrender.com/
+
+> **v1 との違い**: v1 では `n > 100` のとき比較ステップのフレームを省略していたため、
+> O(n²) アルゴリズムがスワップの少ない条件下で O(n log n) より速く見える逆転現象が起きていました。
+> v2 ではすべてのサイズで比較フレームを出力し、**アニメーション完了時間が計算量のオーダーを正しく反映**します。
 
 ---
 
