@@ -75,6 +75,20 @@ function applyGlobalToAll() {
   });
 }
 
+// ===== コンテナサイズ更新 ==========================================
+
+/** パネルがコンテナ外に出た場合にコンテナを広げてスクロールを有効にする */
+function _updateContainerSize() {
+  const container = document.getElementById("panels-container");
+  let maxRight = 0, maxBottom = 0;
+  container.querySelectorAll(".panel").forEach(p => {
+    maxRight  = Math.max(maxRight,  p.offsetLeft + p.offsetWidth  + 20);
+    maxBottom = Math.max(maxBottom, p.offsetTop  + p.offsetHeight + 20);
+  });
+  container.style.minWidth  = maxRight  + "px";
+  container.style.minHeight = maxBottom + "px";
+}
+
 // ===== サイズ統一 ==================================================
 
 /** 最前面パネル（最大 z-index）のサイズに全パネルを揃える */
@@ -133,16 +147,13 @@ class SortPanel {
 
   // ── DOM 構築 ────────────────────────────────────────────────────
   mount(container) {
-    // カスケード初期位置（既存パネル数 × 30px オフセット）
-    const offset = container.querySelectorAll(".panel").length * 30;
-
     const el = document.createElement("div");
     el.className  = "panel";
     el._panel     = this;
     el.id         = `panel-${this.id}`;
     el.innerHTML  = this._template();
-    el.style.left = offset + "px";
-    el.style.top  = offset + "px";
+    el.style.left = "0px";
+    el.style.top  = "0px";
     container.appendChild(el);
     this.el = el;
 
@@ -257,23 +268,25 @@ class SortPanel {
     ro.observe(this.el);
     ro.observe(q(".canvas-wrapper"));
 
-    // ── フリードラッグ移動 ─────────────────────────────────────
+    // ── フリードラッグ移動（差分ベース） ───────────────────────
     const handle = q(".drag-handle");
     handle.addEventListener("mousedown", (e) => {
       e.preventDefault();
       this._bringToFront();
-
-      const panelRect = this.el.getBoundingClientRect();
-      const ox = e.clientX - panelRect.left;  // パネル内クリック相対座標
-      const oy = e.clientY - panelRect.top;
       handle.style.cursor = "grabbing";
 
+      let prevX = e.clientX;
+      let prevY = e.clientY;
+
       const onMove = (mv) => {
-        const cr = document.getElementById("panels-container").getBoundingClientRect();
-        const x = mv.clientX - cr.left - ox;
-        const y = mv.clientY - cr.top  - oy;
-        this.el.style.left = Math.max(0, x) + "px";
-        this.el.style.top  = Math.max(0, y) + "px";
+        const dx = mv.clientX - prevX;
+        const dy = mv.clientY - prevY;
+        prevX = mv.clientX;
+        prevY = mv.clientY;
+
+        this.el.style.left = ((parseFloat(this.el.style.left) || 0) + dx) + "px";
+        this.el.style.top  = ((parseFloat(this.el.style.top)  || 0) + dy) + "px";
+        _updateContainerSize();
       };
       const onUp = () => {
         handle.style.cursor = "";
