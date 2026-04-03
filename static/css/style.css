@@ -74,27 +74,15 @@ header h1 {
   width: 80px;
 }
 
-/* ===== パネルグリッド ===== */
+/* ===== パネルコンテナ（フリーレイアウト） ===== */
 #panels-container {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 14px;
-  align-items: flex-start;
-}
-
-/* 縦並びモード */
-#panels-container.layout-col {
-  flex-direction: column;
-  align-items: stretch;
-}
-#panels-container.layout-col .panel {
-  width: auto;        /* コンテナ幅いっぱいに広がる */
-  min-width: unset;
-  resize: vertical;   /* 縦並び時は高さのみリサイズ */
+  position: relative;
+  min-height: calc(100vh - 185px);
 }
 
 /* ===== 1パネル ===== */
 .panel {
+  position: absolute;   /* フリー配置 */
   background: #16213e;
   border: 1px solid #0f3460;
   border-radius: 12px;
@@ -102,18 +90,18 @@ header h1 {
   width: 520px;
   min-width: 280px;
   min-height: 340px;
-  flex-shrink: 0;
   display: flex;
   flex-direction: column;
   gap: 8px;
   box-shadow: 0 4px 16px rgba(0,0,0,.5);
-  transition: border-color .2s;
+  transition: border-color .2s, box-shadow .15s;
   /* ── リサイズ ── */
   resize: both;
   overflow: hidden;
 }
 .panel.running  { border-color: #e94560; }
 .panel.finished { border-color: #44aa44; }
+.panel.front    { box-shadow: 0 8px 28px rgba(0,0,0,.8); }
 
 /* リサイズハンドルを目立たせる */
 .panel::after {
@@ -295,5 +283,5 @@ header h1 {
 
 /* ===== レスポンシブ ===== */
 @media (max-width: 560px) {
-  .panel { width: 100%; }
+  .panel { width: calc(100vw - 24px); }
 }

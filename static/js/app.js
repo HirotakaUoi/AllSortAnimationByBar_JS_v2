@@ -3,6 +3,7 @@
  *
  * 各パネルは独立した WebSocket 接続を持ち、
  * 複数パネルを同時に実行できる。
+ * パネルはコンテナ内をフリードラッグで自由に配置できる。
  */
 
 "use strict";
@@ -12,7 +13,6 @@ let algorithms  = [];    // [{ id, name }, ...]
 let dataSizes   = [];    // [16, 32, ...]
 let conditions  = [];    // [{ id, name }, ...]
 let panelSeq    = 0;     // パネル ID 採番
-let _dragSrcEl  = null;  // ドラッグ中のパネル要素
 
 // ===== 起動 ========================================================
 window.addEventListener("DOMContentLoaded", async () => {
@@ -22,7 +22,6 @@ window.addEventListener("DOMContentLoaded", async () => {
   document.getElementById("btn-start-all")   .addEventListener("click", startAll);
   document.getElementById("btn-stop-all")    .addEventListener("click", stopAll);
   document.getElementById("btn-sync-size")   .addEventListener("click", syncSize);
-  document.getElementById("btn-layout")      .addEventListener("click", toggleLayout);
   document.getElementById("btn-apply-global").addEventListener("click", applyGlobalToAll);
   addPanel(); // 初期パネルを1つ表示
 });
@@ -41,7 +40,6 @@ async function loadMeta() {
 // ===== 全パネル一括設定 ============================================
 
 function _setupGlobalControls() {
-  // セレクトを動的生成
   const gSize = document.getElementById("global-size");
   dataSizes.forEach(s => gSize.appendChild(new Option(String(s), s)));
   gSize.value = 32;
@@ -49,7 +47,6 @@ function _setupGlobalControls() {
   const gCond = document.getElementById("global-cond");
   conditions.forEach(c => gCond.appendChild(new Option(c.name, c.id)));
 
-  // 速度スライダーのラベル更新
   const gSpeed    = document.getElementById("global-speed");
   const gSpeedVal = document.getElementById("global-speed-val");
   gSpeed.addEventListener("input", () => {
@@ -61,19 +58,15 @@ function _setupGlobalControls() {
 
 /** 全パネルへグローバル設定を適用（ボタン押下時） */
 function applyGlobalToAll() {
-  const size      = document.getElementById("global-size").value;
-  const cond      = document.getElementById("global-cond").value;
+  const size        = document.getElementById("global-size").value;
+  const cond        = document.getElementById("global-cond").value;
   const speedSlider = Number(document.getElementById("global-speed").value);
 
   document.querySelectorAll(".panel").forEach(el => {
     const panel = el._panel;
     if (!panel) return;
-
-    // 速度は実行中でも変更可
     el.querySelector(".rng-speed").value = speedSlider;
     panel._applySpeed(speedSlider);
-
-    // データ数・初期状態は非実行中のみ
     if (!panel.isRunning) {
       el.querySelector(".sel-size").value = size;
       el.querySelector(".sel-cond").value = cond;
@@ -82,32 +75,22 @@ function applyGlobalToAll() {
   });
 }
 
-// ===== レイアウト切り替え ==========================================
-
-function toggleLayout() {
-  const container = document.getElementById("panels-container");
-  const btn       = document.getElementById("btn-layout");
-  const isCol     = container.classList.toggle("layout-col");
-  btn.textContent = isCol ? "⇅ 縦並び" : "⇄ 横並び";
-  // レイアウト変更後にすべてのパネルのキャンバスサイズを更新
-  document.querySelectorAll(".panel").forEach(el => {
-    const panel = el._panel;
-    if (panel) requestAnimationFrame(() => panel._onResize());
-  });
-}
-
 // ===== サイズ統一 ==================================================
 
-/** 左上のパネルサイズに全パネルを揃える */
+/** 最前面パネル（最大 z-index）のサイズに全パネルを揃える */
 function syncSize() {
   const panels = [...document.querySelectorAll(".panel")];
   if (panels.length < 2) return;
-  const first = panels[0];
-  const w = first.offsetWidth;
-  const h = first.offsetHeight;
-  panels.slice(1).forEach(el => {
-    el.style.width  = w + "px";
-    el.style.height = h + "px";
+  const front = panels.reduce((a, b) =>
+    (parseInt(b.style.zIndex) || 1) > (parseInt(a.style.zIndex) || 1) ? b : a
+  );
+  const w = front.offsetWidth;
+  const h = front.offsetHeight;
+  panels.forEach(el => {
+    if (el !== front) {
+      el.style.width  = w + "px";
+      el.style.height = h + "px";
+    }
   });
 }
 
@@ -150,15 +133,22 @@ class SortPanel {
 
   // ── DOM 構築 ────────────────────────────────────────────────────
   mount(container) {
+    // カスケード初期位置（既存パネル数 × 30px オフセット）
+    const offset = container.querySelectorAll(".panel").length * 30;
+
     const el = document.createElement("div");
     el.className  = "panel";
     el._panel     = this;
     el.id         = `panel-${this.id}`;
     el.innerHTML  = this._template();
+    el.style.left = offset + "px";
+    el.style.top  = offset + "px";
     container.appendChild(el);
     this.el = el;
+
     this._bind();
     this._populateSelects();
+    this._bringToFront();
     // DOM レイアウト確定後にプレビュー描画
     requestAnimationFrame(() => this._drawPreview());
     return el;
@@ -221,35 +211,22 @@ class SortPanel {
   // ── セレクトを動的に生成 ─────────────────────────────────────
   _populateSelects() {
     const selAlgo = this.el.querySelector(".sel-algo");
-    algorithms.forEach(a => {
-      const opt = new Option(a.name, a.id);
-      selAlgo.appendChild(opt);
-    });
-    // デフォルト: パネルIDに応じてアルゴリズムを分散
+    algorithms.forEach(a => selAlgo.appendChild(new Option(a.name, a.id)));
     selAlgo.value = (this.id - 1) % algorithms.length;
 
     const selSize = this.el.querySelector(".sel-size");
-    dataSizes.forEach(s => {
-      const opt = new Option(String(s), s);
-      selSize.appendChild(opt);
-    });
-    // グローバル設定の現在値を引き継ぐ
-    const globalSize = document.getElementById("global-size")?.value;
-    selSize.value = globalSize || 32;
+    dataSizes.forEach(s => selSize.appendChild(new Option(String(s), s)));
+    selSize.value = document.getElementById("global-size")?.value || 32;
 
     const selCond = this.el.querySelector(".sel-cond");
-    conditions.forEach(c => {
-      const opt = new Option(c.name, c.id);
-      selCond.appendChild(opt);
-    });
-    const globalCond = document.getElementById("global-cond")?.value;
-    if (globalCond) selCond.value = globalCond;
+    conditions.forEach(c => selCond.appendChild(new Option(c.name, c.id)));
+    const gCond = document.getElementById("global-cond")?.value;
+    if (gCond) selCond.value = gCond;
 
-    // 速度もグローバルと同期
-    const globalSpeed = document.getElementById("global-speed")?.value;
-    if (globalSpeed) {
-      this.el.querySelector(".rng-speed").value = globalSpeed;
-      this._applySpeed(Number(globalSpeed));
+    const gSpeed = document.getElementById("global-speed")?.value;
+    if (gSpeed) {
+      this.el.querySelector(".rng-speed").value = gSpeed;
+      this._applySpeed(Number(gSpeed));
     }
   }
 
@@ -272,55 +249,53 @@ class SortPanel {
     q(".sel-size").addEventListener("change", () => { if (!this.isRunning) this._drawPreview(); });
     q(".sel-cond").addEventListener("change", () => { if (!this.isRunning) this._drawPreview(); });
 
-    // パネル全体 & キャンバスラッパー両方を監視（resize: both に対応）
+    // パネルクリックで最前面へ
+    this.el.addEventListener("mousedown", () => this._bringToFront());
+
+    // キャンバスリサイズ監視
     const ro = new ResizeObserver(() => this._onResize());
     ro.observe(this.el);
     ro.observe(q(".canvas-wrapper"));
 
-    // ── ドラッグ & ドロップで並び替え ─────────────────────────
+    // ── フリードラッグ移動 ─────────────────────────────────────
     const handle = q(".drag-handle");
-
-    // ハンドルを押している間だけパネルをドラッグ可能にする
-    handle.addEventListener("mousedown", () => { this.el.draggable = true; });
-    handle.addEventListener("mouseup",   () => { this.el.draggable = false; });
-
-    this.el.addEventListener("dragstart", (e) => {
-      _dragSrcEl = this.el;
-      this.el.classList.add("dragging");
-      e.dataTransfer.effectAllowed = "move";
-    });
-    this.el.addEventListener("dragend", () => {
-      this.el.draggable = false;
-      this.el.classList.remove("dragging");
-      document.querySelectorAll(".panel").forEach(p => p.classList.remove("drag-over"));
-      _dragSrcEl = null;
-    });
-    this.el.addEventListener("dragover", (e) => {
-      if (!_dragSrcEl || _dragSrcEl === this.el) return;
+    handle.addEventListener("mousedown", (e) => {
       e.preventDefault();
-      e.dataTransfer.dropEffect = "move";
-      this.el.classList.add("drag-over");
+      this._bringToFront();
+
+      const panelRect = this.el.getBoundingClientRect();
+      const ox = e.clientX - panelRect.left;  // パネル内クリック相対座標
+      const oy = e.clientY - panelRect.top;
+      handle.style.cursor = "grabbing";
+
+      const onMove = (mv) => {
+        const cr = document.getElementById("panels-container").getBoundingClientRect();
+        const x = mv.clientX - cr.left - ox;
+        const y = mv.clientY - cr.top  - oy;
+        this.el.style.left = Math.max(0, x) + "px";
+        this.el.style.top  = Math.max(0, y) + "px";
+      };
+      const onUp = () => {
+        handle.style.cursor = "";
+        document.removeEventListener("mousemove", onMove);
+        document.removeEventListener("mouseup",   onUp);
+      };
+      document.addEventListener("mousemove", onMove);
+      document.addEventListener("mouseup",   onUp);
     });
-    this.el.addEventListener("dragleave", (e) => {
-      // パネル外に出た時だけ解除（子要素への移動では解除しない）
-      if (!this.el.contains(e.relatedTarget)) {
-        this.el.classList.remove("drag-over");
-      }
+  }
+
+  // ── 最前面へ ──────────────────────────────────────────────────
+  _bringToFront() {
+    let maxZ = 0;
+    document.querySelectorAll(".panel").forEach(p => {
+      maxZ = Math.max(maxZ, parseInt(p.style.zIndex) || 1);
     });
-    this.el.addEventListener("drop", (e) => {
-      e.preventDefault();
-      this.el.classList.remove("drag-over");
-      if (!_dragSrcEl || _dragSrcEl === this.el) return;
-      const container = document.getElementById("panels-container");
-      const all = [...container.querySelectorAll(".panel")];
-      const srcIdx = all.indexOf(_dragSrcEl);
-      const dstIdx = all.indexOf(this.el);
-      if (srcIdx < dstIdx) {
-        container.insertBefore(_dragSrcEl, this.el.nextSibling);
-      } else {
-        container.insertBefore(_dragSrcEl, this.el);
-      }
-    });
+    this.el.style.zIndex = maxZ + 1;
+
+    // .front クラスを付け替えてシャドウ強調
+    document.querySelectorAll(".panel").forEach(p => p.classList.remove("front"));
+    this.el.classList.add("front");
   }
 
   // ── リサイズハンドラ ─────────────────────────────────────────
@@ -331,32 +306,26 @@ class SortPanel {
     const h = wrapper.clientHeight;
     if (w <= 0 || h <= 0) return;
 
-    // ★ バグ修正: 同値でも canvas.width = x は必ずキャンバスをクリアするため
-    //    実際にサイズが変わった時だけ代入する
     const sizeChanged = (canvas.width !== w || canvas.height !== h);
     if (sizeChanged) {
       canvas.width  = w;
       canvas.height = h;
     } else {
-      // サイズ未変更 → 何も消えていないので再描画不要
       return;
     }
 
-    // サイズ変更後に再描画
     if (this.isRunning && this.sortCanvas && this._lastFrame) {
-      // アニメーション中: 最後のフレームを再描画
       this.sortCanvas.canvas   = canvas;
       this.sortCanvas.ctx      = canvas.getContext("2d");
       this.sortCanvas.numItems = this.numItems;
       this.sortCanvas.dataMax  = this.dataMax;
       this.sortCanvas.draw(this._lastFrame);
     } else if (!this.isRunning) {
-      // 待機中・リセット後: プレビューを再描画
       this._drawPreviewOnCanvas(canvas, w, h);
     }
   }
 
-  // ── プレビューデータ生成（クライアントサイド） ──────────────
+  // ── プレビューデータ生成 ─────────────────────────────────────
   _generatePreviewData() {
     const numItems  = Number(this.el.querySelector(".sel-size").value);
     const condition = Number(this.el.querySelector(".sel-cond").value);
@@ -365,11 +334,11 @@ class SortPanel {
     let data = Array.from({ length: numItems },
                           () => Math.floor(Math.random() * dataMax) + 1);
 
-    if (condition === 1) {                       // 昇順
+    if (condition === 1) {
       data.sort((a, b) => a - b);
-    } else if (condition === 2) {                // 降順
+    } else if (condition === 2) {
       data.sort((a, b) => b - a);
-    } else if (condition === 3) {                // ほぼ昇順
+    } else if (condition === 3) {
       data.sort((a, b) => a - b);
       const swaps = Math.max(1, Math.floor(numItems / 10));
       for (let k = 0; k < swaps; k++) {
@@ -377,7 +346,7 @@ class SortPanel {
         const j = Math.floor(Math.random() * numItems);
         [data[i], data[j]] = [data[j], data[i]];
       }
-    } else if (condition === 4) {                // ステップ値
+    } else if (condition === 4) {
       const steps = Math.max(2, Math.floor(Math.sqrt(numItems)));
       const pool  = Array.from({ length: steps }, (_, i) =>
         Math.floor(Math.random() * (dataMax / steps)) + i * Math.floor(dataMax / steps) + 1
@@ -389,14 +358,13 @@ class SortPanel {
     return { data, color: new Array(numItems).fill("b"), dataMax, numItems };
   }
 
-  // ── プレビューを描画（canvas サイズも設定） ──────────────────
+  // ── プレビュー描画 ──────────────────────────────────────────
   _drawPreview() {
     const wrapper = this.el.querySelector(".canvas-wrapper");
     const canvas  = this.el.querySelector(".sort-canvas");
     const w = wrapper.clientWidth;
     const h = wrapper.clientHeight || Math.round(w * 0.45);
     if (w <= 0) return;
-    // ★ バグ修正: サイズが変わった時だけ代入（同値代入もクリアになるため）
     if (canvas.width !== w || canvas.height !== h) {
       canvas.width  = w;
       canvas.height = h || Math.round(w * 0.45);
@@ -412,11 +380,10 @@ class SortPanel {
               arrows: [], texts: [], lines: [], bars: [], finished: false });
   }
 
-  // ── スピード変換: スライダー(1-200) → 秒/フレーム ──────────
+  // ── スピード変換 ─────────────────────────────────────────────
   _applySpeed(sliderVal) {
-    // スライダー右 = 速い = 秒数小
-    const speed  = Math.round(200 / sliderVal * 10) / 1000; // 0.001 ~ 2.0
-    const mult   = Math.round(sliderVal / 80 * 10) / 10;
+    const speed = Math.round(200 / sliderVal * 10) / 1000;
+    const mult  = Math.round(sliderVal / 80 * 10) / 10;
     this.el.querySelector(".speed-value").textContent = `×${mult.toFixed(1)}`;
     if (this.client) this.client.setSpeed(speed);
     this._speed = speed;
@@ -431,12 +398,11 @@ class SortPanel {
   async start() {
     if (this.isRunning) return;
 
-    const algoId  = Number(this.el.querySelector(".sel-algo").value);
+    const algoId   = Number(this.el.querySelector(".sel-algo").value);
     const numItems = Number(this.el.querySelector(".sel-size").value);
-    const condId  = Number(this.el.querySelector(".sel-cond").value);
-    const speed   = this._currentSpeed();
+    const condId   = Number(this.el.querySelector(".sel-cond").value);
+    const speed    = this._currentSpeed();
 
-    // サーバーにセッション開始を要求
     let info;
     try {
       const res = await fetch("/api/start", {
@@ -463,11 +429,9 @@ class SortPanel {
     this.isPaused  = false;
     this._frameCount = 0;
 
-    // キャンバスを初期化
     const canvas = this.el.querySelector(".sort-canvas");
     this.sortCanvas = new SortCanvas(canvas, this.numItems, this.dataMax);
 
-    // UI 更新
     this.el.querySelector(".panel-title").textContent = info.algo_name;
     this.el.classList.add("running");
     this.el.classList.remove("finished");
@@ -476,7 +440,6 @@ class SortPanel {
     this.el.querySelector(".status-algo").textContent = info.algo_name;
     this.el.querySelector(".text-overlay").textContent = "アニメーション開始...";
 
-    // WebSocket 接続
     this.client = new AnimationClient(
       this.sessionId,
       (frame) => this._onFrame(frame),
@@ -555,7 +518,6 @@ class SortPanel {
     this.sortCanvas  = null;
     this._lastFrame  = null;
     this._frameCount = 0;
-    // リセット後もデータをプレビュー表示
     this._drawPreview();
   }
 
