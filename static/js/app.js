@@ -56,11 +56,48 @@ function _setupGlobalControls() {
   });
 }
 
+/**
+ * 全パネル共有用のプレビューデータを生成する（モジュールレベル関数）
+ * applyGlobalToAll() から呼ばれ、全パネルに同一データセットを配布する。
+ */
+function _generateSharedData(numItems, condition) {
+  const dataMax = numItems > 150 ? 300 : 100;
+
+  let data = Array.from({ length: numItems },
+                        () => Math.floor(Math.random() * dataMax) + 1);
+
+  if (condition === 1) {
+    data.sort((a, b) => a - b);
+  } else if (condition === 2) {
+    data.sort((a, b) => b - a);
+  } else if (condition === 3) {
+    data.sort((a, b) => a - b);
+    const swaps = Math.max(1, Math.floor(numItems / 10));
+    for (let k = 0; k < swaps; k++) {
+      const i = Math.floor(Math.random() * numItems);
+      const j = Math.floor(Math.random() * numItems);
+      [data[i], data[j]] = [data[j], data[i]];
+    }
+  } else if (condition === 4) {
+    const steps = Math.max(2, Math.floor(Math.sqrt(numItems)));
+    const pool  = Array.from({ length: steps }, (_, i) =>
+      Math.floor(Math.random() * (dataMax / steps)) + i * Math.floor(dataMax / steps) + 1
+    );
+    data = Array.from({ length: numItems },
+                      () => pool[Math.floor(Math.random() * pool.length)]);
+  }
+
+  return { data, color: new Array(numItems).fill("b"), dataMax, numItems };
+}
+
 /** 全パネルへグローバル設定を適用（ボタン押下時） */
 function applyGlobalToAll() {
-  const size        = document.getElementById("global-size").value;
-  const cond        = document.getElementById("global-cond").value;
+  const size        = Number(document.getElementById("global-size").value);
+  const cond        = Number(document.getElementById("global-cond").value);
   const speedSlider = Number(document.getElementById("global-speed").value);
+
+  // データセットを1度だけ生成 → 全パネルへ配布
+  const sharedData = _generateSharedData(size, cond);
 
   document.querySelectorAll(".panel").forEach(el => {
     const panel = el._panel;
@@ -70,7 +107,7 @@ function applyGlobalToAll() {
     if (!panel.isRunning) {
       el.querySelector(".sel-size").value = size;
       el.querySelector(".sel-cond").value = cond;
-      panel._drawPreview();
+      panel._drawPreviewFromData(sharedData);
     }
   });
 }
@@ -390,6 +427,34 @@ class SortPanel {
     this._previewCache = pd;
     const sc = new SortCanvas(canvas, pd.numItems, pd.dataMax);
     sc.draw({ data: pd.data, color: pd.color,
+              arrows: [], texts: [], lines: [], bars: [], finished: false });
+  }
+
+  /**
+   * 外部から渡された既製データでプレビューを描画する。
+   * applyGlobalToAll() が全パネルへ同一データを配布するために使用。
+   * pd は _generateSharedData() / _generatePreviewData() が返すオブジェクト。
+   */
+  _drawPreviewFromData(pd) {
+    // pd は共有オブジェクトなので color 配列をコピーして独立させる
+    const ownPd = {
+      data:     [...pd.data],
+      color:    new Array(pd.numItems).fill("b"),
+      dataMax:  pd.dataMax,
+      numItems: pd.numItems,
+    };
+    const wrapper = this.el.querySelector(".canvas-wrapper");
+    const canvas  = this.el.querySelector(".sort-canvas");
+    const w = wrapper.clientWidth;
+    const h = wrapper.clientHeight || Math.round(w * 0.45);
+    if (w <= 0) return;
+    if (canvas.width !== w || canvas.height !== h) {
+      canvas.width  = w;
+      canvas.height = h;
+    }
+    this._previewCache = ownPd;
+    const sc = new SortCanvas(canvas, ownPd.numItems, ownPd.dataMax);
+    sc.draw({ data: ownPd.data, color: ownPd.color,
               arrows: [], texts: [], lines: [], bars: [], finished: false });
   }
 
