@@ -14,6 +14,36 @@ let dataSizes   = [];    // [16, 32, ...]
 let conditions  = [];    // [{ id, name }, ...]
 let panelSeq    = 0;     // パネル ID 採番
 
+// ===== スナップ設定 ================================================
+const SNAP_THRESHOLD = 15;  // px — この距離以内なら吸着する
+
+/**
+ * 原点 (0,0) に最も近いパネルを返す（スナップ基準パネル）。
+ * excludeEl を指定すると、そのパネルは候補から除外する。
+ */
+function _getTopLeftPanel(excludeEl = null) {
+  let best = null, bestDist = Infinity;
+  document.querySelectorAll(".panel").forEach(p => {
+    if (p === excludeEl) return;
+    const d = Math.sqrt(p.offsetLeft ** 2 + p.offsetTop ** 2);
+    if (d < bestDist) { bestDist = d; best = p; }
+  });
+  return best;
+}
+
+/**
+ * val がいずれかのスナップ点から threshold 以内であれば吸着値を返す。
+ * 最も近いスナップ点を優先する。
+ */
+function _snapValue(val, snapPoints, threshold) {
+  let closest = val, minDiff = threshold;
+  for (const sp of snapPoints) {
+    const diff = Math.abs(val - sp);
+    if (diff < minDiff) { minDiff = diff; closest = sp; }
+  }
+  return closest;
+}
+
 // ===== 起動 ========================================================
 window.addEventListener("DOMContentLoaded", async () => {
   await loadMeta();
@@ -321,8 +351,26 @@ class SortPanel {
         prevX = mv.clientX;
         prevY = mv.clientY;
 
-        this.el.style.left = ((parseFloat(this.el.style.left) || 0) + dx) + "px";
-        this.el.style.top  = ((parseFloat(this.el.style.top)  || 0) + dy) + "px";
+        let newLeft = (parseFloat(this.el.style.left) || 0) + dx;
+        let newTop  = (parseFloat(this.el.style.top)  || 0) + dy;
+
+        // ── スナップ処理 ──────────────────────────────────────────
+        const ref = _getTopLeftPanel(this.el);
+        if (ref) {
+          const rL = ref.offsetLeft;
+          const rT = ref.offsetTop;
+          const rR = rL + ref.offsetWidth;
+          const rB = rT + ref.offsetHeight;
+          const cW = this.el.offsetWidth;
+          const cH = this.el.offsetHeight;
+          // 左辺のスナップ点：ref の左辺・右辺、右辺を合わせる点
+          newLeft = _snapValue(newLeft, [rL, rR, rR - cW, rL - cW], SNAP_THRESHOLD);
+          // 上辺のスナップ点：ref の上辺・下辺、下辺を合わせる点
+          newTop  = _snapValue(newTop,  [rT, rB, rB - cH, rT - cH], SNAP_THRESHOLD);
+        }
+
+        this.el.style.left = newLeft + "px";
+        this.el.style.top  = newTop  + "px";
         _updateContainerSize();
       };
       const onUp = () => {
@@ -350,6 +398,15 @@ class SortPanel {
 
   // ── リサイズハンドラ ─────────────────────────────────────────
   _onResize() {
+    // ── サイズスナップ ────────────────────────────────────────────
+    const ref = _getTopLeftPanel(this.el);
+    if (ref) {
+      const snapW = _snapValue(this.el.offsetWidth,  [ref.offsetWidth],  SNAP_THRESHOLD);
+      const snapH = _snapValue(this.el.offsetHeight, [ref.offsetHeight], SNAP_THRESHOLD);
+      if (snapW !== this.el.offsetWidth)  this.el.style.width  = snapW + "px";
+      if (snapH !== this.el.offsetHeight) this.el.style.height = snapH + "px";
+    }
+
     const wrapper = this.el.querySelector(".canvas-wrapper");
     const canvas  = this.el.querySelector(".sort-canvas");
     const w = wrapper.clientWidth;
