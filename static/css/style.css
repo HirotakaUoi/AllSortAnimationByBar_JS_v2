@@ -75,10 +75,27 @@ header h1 {
   width: 80px;
 }
 
+/* ===== ズームコントロール ===== */
+#zoom-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 8px;
+  padding-left: 8px;
+  border-left: 1px solid #334;
+}
+#zoom-label {
+  min-width: 3.2em;
+  text-align: center;
+  font-size: .85rem;
+  color: #ccc;
+}
+
 /* ===== パネルコンテナ（フリーレイアウト） ===== */
 #panels-container {
   position: relative;
   min-height: calc(100vh - 185px);
+  transform-origin: 0 0;
 }
 
 /* ===== 1パネル ===== */
@@ -120,8 +137,6 @@ header h1 {
   border-radius: 0 0 10px 0;
   opacity: .6;
 }
-/* absolute が効くよう position を付与 */
-.panel { position: relative; }
 
 /* パネルタイトルバー */
 .panel-header {
@@ -151,7 +166,7 @@ header h1 {
 
 /* ドラッグハンドル */
 .drag-handle {
-  color: #444;
+  color: #888;
   font-size: 1.2rem;
   cursor: grab;
   padding: 0 4px;

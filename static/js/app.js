@@ -13,9 +13,11 @@ let algorithms  = [];    // [{ id, name }, ...]
 let dataSizes   = [];    // [16, 32, ...]
 let conditions  = [];    // [{ id, name }, ...]
 let panelSeq    = 0;     // パネル ID 採番
+let zoomLevel   = 1.0;   // パネルコンテナのズーム倍率
 
 // ===== スナップ設定 ================================================
 const SNAP_THRESHOLD = 15;  // px — この距離以内なら吸着する
+const SNAP_GAP       = 10;  // px — 隣接エッジスナップ時の余白
 
 /**
  * 原点 (0,0) に最も近いパネルを返す（スナップ基準パネル）。
@@ -48,6 +50,7 @@ function _snapValue(val, snapPoints, threshold) {
 window.addEventListener("DOMContentLoaded", async () => {
   await loadMeta();
   _setupGlobalControls();
+  _setupZoomControls();
   document.getElementById("btn-add-panel")   .addEventListener("click", addPanel);
   document.getElementById("btn-start-all")   .addEventListener("click", startAll);
   document.getElementById("btn-stop-all")    .addEventListener("click", stopAll);
@@ -84,6 +87,27 @@ function _setupGlobalControls() {
     const mult = Math.round(v / 80 * 10) / 10;
     gSpeedVal.textContent = `×${mult.toFixed(1)}`;
   });
+}
+
+// ===== ズーム ======================================================
+
+function _applyZoom(level) {
+  const ZOOM_MIN = 0.25, ZOOM_MAX = 2.0, ZOOM_STEP = 0.1;
+  zoomLevel = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(level * 10) / 10));
+  document.getElementById("panels-container").style.transform = `scale(${zoomLevel})`;
+  document.getElementById("zoom-label").textContent = Math.round(zoomLevel * 100) + "%";
+}
+
+function _setupZoomControls() {
+  document.getElementById("btn-zoom-in")   .addEventListener("click", () => _applyZoom(zoomLevel + 0.1));
+  document.getElementById("btn-zoom-out")  .addEventListener("click", () => _applyZoom(zoomLevel - 0.1));
+  document.getElementById("btn-zoom-reset").addEventListener("click", () => _applyZoom(1.0));
+  // Ctrl+ホイールでもズーム
+  document.getElementById("panels-container").addEventListener("wheel", (e) => {
+    if (!e.ctrlKey) return;
+    e.preventDefault();
+    _applyZoom(zoomLevel + (e.deltaY < 0 ? 0.1 : -0.1));
+  }, { passive: false });
 }
 
 /**
@@ -219,8 +243,26 @@ class SortPanel {
     el._panel     = this;
     el.id         = `panel-${this.id}`;
     el.innerHTML  = this._template();
-    el.style.left = "0px";
-    el.style.top  = "0px";
+    // 既存パネルの右端に配置。画面幅を超える場合は次の行へ
+    let initLeft = 0, initTop = 0;
+    const existing = container.querySelectorAll(".panel");
+    if (existing.length > 0) {
+      let maxRight = 0, maxBottom = 0;
+      existing.forEach(p => {
+        maxRight  = Math.max(maxRight,  p.offsetLeft + p.offsetWidth  + 12);
+        maxBottom = Math.max(maxBottom, p.offsetTop  + p.offsetHeight + 12);
+      });
+      const panelW = 520; // デフォルト幅の概算
+      if (maxRight + panelW <= window.innerWidth) {
+        initLeft = maxRight;
+        initTop  = 0;
+      } else {
+        initLeft = 0;
+        initTop  = maxBottom;
+      }
+    }
+    el.style.left = initLeft + "px";
+    el.style.top  = initTop  + "px";
     container.appendChild(el);
     this.el = el;
 
@@ -346,8 +388,8 @@ class SortPanel {
       let prevY = e.clientY;
 
       const onMove = (mv) => {
-        const dx = mv.clientX - prevX;
-        const dy = mv.clientY - prevY;
+        const dx = (mv.clientX - prevX) / zoomLevel;
+        const dy = (mv.clientY - prevY) / zoomLevel;
         prevX = mv.clientX;
         prevY = mv.clientY;
 
@@ -364,9 +406,10 @@ class SortPanel {
           const cW = this.el.offsetWidth;
           const cH = this.el.offsetHeight;
           // 左辺のスナップ点：ref の左辺・右辺、右辺を合わせる点
-          newLeft = _snapValue(newLeft, [rL, rR, rR - cW, rL - cW], SNAP_THRESHOLD);
-          // 上辺のスナップ点：ref の上辺・下辺、下辺を合わせる点
-          newTop  = _snapValue(newTop,  [rT, rB, rB - cH, rT - cH], SNAP_THRESHOLD);
+          // 左辺合わせ・右辺合わせ（同位置）、右隣・左隣（余白あり）
+          newLeft = _snapValue(newLeft, [rL, rR - cW, rR + SNAP_GAP, rL - cW - SNAP_GAP], SNAP_THRESHOLD);
+          // 上辺合わせ・下辺合わせ（同位置）、下隣・上隣（余白あり）
+          newTop  = _snapValue(newTop,  [rT, rB - cH, rB + SNAP_GAP, rT - cH - SNAP_GAP], SNAP_THRESHOLD);
         }
 
         this.el.style.left = newLeft + "px";
