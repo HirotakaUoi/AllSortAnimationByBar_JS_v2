@@ -18,10 +18,11 @@ let _dragSrcEl  = null;  // ドラッグ中のパネル要素
 window.addEventListener("DOMContentLoaded", async () => {
   await loadMeta();
   _setupGlobalControls();
-  document.getElementById("btn-add-panel") .addEventListener("click", addPanel);
-  document.getElementById("btn-start-all") .addEventListener("click", startAll);
-  document.getElementById("btn-stop-all")  .addEventListener("click", stopAll);
-  document.getElementById("btn-sync-size") .addEventListener("click", syncSize);
+  document.getElementById("btn-add-panel")   .addEventListener("click", addPanel);
+  document.getElementById("btn-start-all")   .addEventListener("click", startAll);
+  document.getElementById("btn-stop-all")    .addEventListener("click", stopAll);
+  document.getElementById("btn-sync-size")   .addEventListener("click", syncSize);
+  document.getElementById("btn-layout")      .addEventListener("click", toggleLayout);
   document.getElementById("btn-apply-global").addEventListener("click", applyGlobalToAll);
   addPanel(); // 初期パネルを1つ表示
 });
@@ -78,6 +79,20 @@ function applyGlobalToAll() {
       el.querySelector(".sel-cond").value = cond;
       panel._drawPreview();
     }
+  });
+}
+
+// ===== レイアウト切り替え ==========================================
+
+function toggleLayout() {
+  const container = document.getElementById("panels-container");
+  const btn       = document.getElementById("btn-layout");
+  const isCol     = container.classList.toggle("layout-col");
+  btn.textContent = isCol ? "⇅ 縦並び" : "⇄ 横並び";
+  // レイアウト変更後にすべてのパネルのキャンバスサイズを更新
+  document.querySelectorAll(".panel").forEach(el => {
+    const panel = el._panel;
+    if (panel) requestAnimationFrame(() => panel._onResize());
   });
 }
 

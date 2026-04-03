@@ -82,6 +82,17 @@ header h1 {
   align-items: flex-start;
 }
 
+/* 縦並びモード */
+#panels-container.layout-col {
+  flex-direction: column;
+  align-items: stretch;
+}
+#panels-container.layout-col .panel {
+  width: auto;        /* コンテナ幅いっぱいに広がる */
+  min-width: unset;
+  resize: vertical;   /* 縦並び時は高さのみリサイズ */
+}
+
 /* ===== 1パネル ===== */
 .panel {
   background: #16213e;
