@@ -471,7 +471,15 @@ class SortPanel {
       this.sortCanvas.dataMax  = this.dataMax;
       this.sortCanvas.draw(this._lastFrame);
     } else if (!this.isRunning) {
-      this._drawPreviewOnCanvas(canvas, w, h);
+      // リサイズ時はキャッシュを再描画するだけ（新規生成して共有データを上書きしない）
+      if (this._previewCache) {
+        const pd = this._previewCache;
+        const sc = new SortCanvas(canvas, pd.numItems, pd.dataMax);
+        sc.draw({ data: pd.data, color: pd.color,
+                  arrows: [], texts: [], lines: [], bars: [], finished: false });
+      } else {
+        this._drawPreviewOnCanvas(canvas, w, h);
+      }
     }
   }
 
@@ -583,15 +591,20 @@ class SortPanel {
 
     let info;
     try {
+      const body = {
+        algorithm_id:   algoId,
+        num_items:      numItems,
+        data_condition: condId,
+        speed:          speed,
+      };
+      // 全パネル一括適用で共有データが設定済みの場合はそれを送る
+      if (this._previewCache && this._previewCache.numItems === numItems) {
+        body.initial_data = this._previewCache.data;
+      }
       const res = await fetch("/api/start", {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          algorithm_id:   algoId,
-          num_items:      numItems,
-          data_condition: condId,
-          speed:          speed,
-        }),
+        body: JSON.stringify(body),
       });
       if (!res.ok) throw new Error(await res.text());
       info = await res.json();

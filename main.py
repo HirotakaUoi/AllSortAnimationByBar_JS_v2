@@ -48,8 +48,9 @@ def get_conditions():
 class StartParams(BaseModel):
     algorithm_id: int
     num_items: int
-    data_condition: int = 0   # 0=ランダム … 4=ステップ値
-    speed: float = 0.08       # 秒/フレーム
+    data_condition: int = 0          # 0=ランダム … 4=ステップ値
+    speed: float = 0.08              # 秒/フレーム
+    initial_data: Optional[list[int]] = None  # フロントエンドから共有データを受け取る場合
 
 
 @app.post("/api/start")
@@ -60,7 +61,11 @@ def start_session(params: StartParams):
     num_items = params.num_items
     data_max  = 300 if num_items > 150 else 100
 
-    data, color = make_data(num_items, data_max, params.data_condition)
+    if params.initial_data and len(params.initial_data) == num_items:
+        data  = list(params.initial_data)
+        color = ["b"] * num_items
+    else:
+        data, color = make_data(num_items, data_max, params.data_condition)
 
     algo_name, algo_fn = AlgorithmList[params.algorithm_id]
     generator = algo_fn(data, color)
