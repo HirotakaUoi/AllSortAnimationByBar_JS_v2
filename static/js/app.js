@@ -210,13 +210,15 @@ function _updateContainerSize() {
 
 // ===== サイズ統一 ==================================================
 
-/** 最前面パネル（最大 z-index）のサイズに全パネルを揃える */
+/** 最後にクリックしたパネル（.front）のサイズに全パネルを揃える */
 function syncSize() {
   const panels = [...document.querySelectorAll(".panel")];
   if (panels.length < 2) return;
-  const front = panels.reduce((a, b) =>
-    (parseInt(b.style.zIndex) || 1) > (parseInt(a.style.zIndex) || 1) ? b : a
-  );
+  const front =
+    document.querySelector(".panel.front") ||
+    panels.reduce((a, b) =>
+      (parseInt(b.style.zIndex) || 1) > (parseInt(a.style.zIndex) || 1) ? b : a
+    );
   const w = front.offsetWidth;
   const h = front.offsetHeight;
   panels.forEach(el => {
@@ -296,7 +298,10 @@ class SortPanel {
 
     this._bind();
     this._populateSelects();
-    this._bringToFront();
+    { let mz = 0;
+      document.querySelectorAll(".panel").forEach(p =>
+        { mz = Math.max(mz, parseInt(p.style.zIndex) || 1); });
+      el.style.zIndex = mz + 1; }
     // DOM レイアウト確定後にプレビュー描画
     requestAnimationFrame(() => this._drawPreview());
     return el;
