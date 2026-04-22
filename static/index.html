@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ソートアルゴリズム アニメーション</title>
-  <link rel="stylesheet" href="/static/css/style.css">
+  <link rel="stylesheet" href="/static/css/style.css?v=1">
 </head>
 <body>
 
@@ -23,6 +23,12 @@
           <span   id="zoom-label">100%</span>
           <button id="btn-zoom-in"    class="btn btn-secondary" title="拡大">＋</button>
           <button id="btn-zoom-reset" class="btn btn-secondary" title="ズームリセット">↺</button>
+        </div>
+        <div id="theme-controls">
+          <button class="btn btn-secondary theme-btn theme-active" data-th="dark"     title="ダーク">🌙</button>
+          <button class="btn btn-secondary theme-btn"              data-th="bright"   title="明るめ">☀</button>
+          <button class="btn btn-secondary theme-btn"              data-th="hc"       title="コントラスト強め (暗め)">◑</button>
+          <button class="btn btn-secondary theme-btn"              data-th="hcbright" title="コントラスト強め (明るめ)">◐</button>
         </div>
       </div>
     </div>
@@ -48,8 +54,8 @@
   <main id="panels-container"></main>
 
   <!-- ===== スクリプト ===== -->
-  <script src="/static/js/canvas.js"></script>
-  <script src="/static/js/ws_client.js"></script>
-  <script src="/static/js/app.js"></script>
+  <script src="/static/js/canvas.js?v=1"></script>
+  <script src="/static/js/ws_client.js?v=1"></script>
+  <script src="/static/js/app.js?v=1"></script>
 </body>
 </html>
