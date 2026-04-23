@@ -277,9 +277,9 @@ def quick_sort(data, color, option=None):
                              texts=texts, lines=lines, bars=[i, last])
             stack.append((i + 1, last))
             stack.append((first, i - 1))
-        elif last > 0:
-            color[last] = "gray"
-            yield make_frame(data, color, bars=[last])
+        elif first == last:
+            color[first] = "gray"
+            yield make_frame(data, color, bars=[first])
     yield make_frame(data, color, finished=True)
 
 
